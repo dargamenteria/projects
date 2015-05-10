@@ -1,0 +1,95 @@
+#!/bin/bash
+
+. /etc/backup/backup.conf
+
+
+checks (){
+
+    if (( (${#sourceList[@]} != ${#destinList[@]}) && (${#sourceList[@]} != ${#excludeList[@]}) )); then
+        echo "sourceList or destinList or excludeList have different size" >> ${backupLogDir}/${d}.err
+        return 1;
+    fi
+    
+
+    if [ ! -w ${backupLogDir} ]; then
+	echo "${backupLogDir} not writable" 
+        return 1;
+    fi
+
+    if [ ! -w ${backupDir} ]; then
+        echo "${backupDir} not writable" 
+        echo "${backupDir} not writable" >> ${backupLogDir}/${d}.err
+        return 1;
+    fi
+         
+    return 0;
+}
+
+localBackup (){
+
+    len=${#sourceList[@]}
+
+
+    for (( i=0; $i<$len; i++ )); do
+
+        ex=""
+        if [ ! -z "${excludeList[$i]}" ]; then
+            ex="--exclude-from ${excludes}/${excludeList[$i]}"
+        fi
+
+	if [ ! -e ${destinList[$i]}${sourceList[$i]} ]; then
+
+		mkdir -p ${destinList[$i]}${sourceList[$i]} && chmod 770 ${destinList[$i]}${sourceList[$i]}
+		
+		if (( $? !=0 )); then
+			return 1;
+		fi
+	fi
+
+        rsync -av ${ex} ${sourceList[$i]} ${destinList[$i]}${sourceList[$i]}  >${backupLogDir}/${d}.log 2> ${backupLogDir}/${d}.err ;
+
+    done
+
+
+
+    if (( $? != 0 )); then
+        return 1;
+    fi
+
+    return 0;
+}
+main (){
+
+
+    case "$1" in
+    local)
+        
+        checks
+
+        if (( $? !=0 )); then
+            exit 1;
+        fi
+
+        localBackup
+
+        if (( $? !=0)); then
+             exit 1;
+        else
+             exit 0
+        fi
+
+        ;;
+    remote)
+        ;;
+    *)
+        echo "usage: $0 {local|remote}"
+        ;;
+    esac
+    exit 0
+
+}
+
+d=`date +"%Y%m%d_%H%M%S"`
+
+
+main $1;

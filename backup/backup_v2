@@ -1,0 +1,132 @@
+#!/bin/bash
+
+. /etc/backup/backup.conf
+
+
+checks (){
+
+
+    ################################
+    #log dir is writable
+
+    if [ ! -w ${backupLogDir} ]; then
+        echo "${backupLogDir} not writable" 
+        return 1;
+    fi
+
+    ################################
+    #resources dir exists
+    
+    if [ ! -d "/etc/backup/resources" ]; then
+        echo "/etc/backup/resources not exists" 
+        echo "/etc/backup/resources not exists" >> ${backupLogDir}/${d}.err
+        return 1;
+    fi
+
+    ################################
+    #backup folder exists
+    
+    if [ ! -w ${backupDir} ]; then
+        echo "${backupDir} not writable" 
+        echo "${backupDir} not writable" >> ${backupLogDir}/${d}.err
+        return 1;
+    fi
+         
+    return 0;
+}
+
+localBackup (){
+
+    len=${#resourceList[@]}
+
+
+    for (( i=0; $i<$len; i++ )); do
+
+        exList="/etc/backup/resources/${resourceList[$i]}/toExclude"
+        toBackup="/etc/backup/resources/${resourceList[$i]}/toBackup"
+
+        if [ -e ${toBackup} ]; then
+            
+            tbk=`grep toBackup /etc/backup/resources/${resourceList[$i]}/toBackup | cut -f2 -d "=" | tr -d '"'` 
+
+            if [ -z "${tbk}" ]; then
+                echo "nothing to backup" 
+                echo "nothing to backup" >> ${backupLogDir}/${d}.err
+                return 1;
+            fi
+        
+
+        else 
+            echo "/etc/backup/resources/${resourceList[$i]}/toBackup not exists" 
+            echo "/etc/backup/resources/${resourceList[$i]}/toBackup not exists" >> ${backupLogDir}/${d}.err
+            return 1;
+        fi
+
+        if [ -e ${exList} ]; then  
+
+            ex=""
+            if [ ! -z "${exList}" ]; then
+                ex="--exclude-from ${exList}"
+            fi
+        fi
+
+    	
+
+        mkdir -p "${backupDir}/${resourceList[$i]}${tbk}" && chmod 770 "${backupDir}/${resourceList[$i]}${tbk}" && chown root:users "${backupDir}/${resourceList[$i]}"
+    	
+    	if (( $? !=0 )); then
+    		return 1;
+    	fi
+    	
+        echo "rsync -av ${ex} ${tbk} ${backupDir}/${resourceList[$i]}  >${backupLogDir}/${d}.log 2> ${backupLogDir}/${d}.err ;"
+        ################################
+        #rsync -av --exclude-from /etc/backup/resources/dani/toExclude /home/dani/ /backup/dani/home/dani
+
+        rsync -av ${ex} "${tbk}/" "${backupDir}/${resourceList[$i]}${tbk}"   >"${backupLogDir}/${d}.log" 2> "${backupLogDir}/${d}.err" ;
+          
+
+    done
+
+
+
+    if (( $? != 0 )); then
+        return 1;
+    fi
+
+    return 0;
+}
+main (){
+
+
+    case "$1" in
+    local)
+        
+        checks
+
+        if (( $? !=0 )); then
+            exit 1;
+        fi
+
+        localBackup
+
+        if (( $? !=0)); then
+             exit 1;
+        else
+             exit 0
+        fi
+
+        ;;
+    remote)
+        ;;
+    *)
+        echo "usage: $0 {local|remote}"
+        ;;
+    esac
+    exit 0
+
+}
+
+d=`date +"%Y%m%d_%H%M%S"`
+
+
+main $1;
