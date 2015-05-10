@@ -1,3 +1,0 @@
-#!/bin/bash
-
-/usr/bin/$1 -e /usr/bin/mplayer "$2"

@@ -1,9 +1,0 @@
-# Skip this section below if this device is not connected by USB
-SUBSYSTEM!="usb", GOTO="jolla_usb_rules_end"
-
-#LABEL="jolla_usb_rules_begin"
-ACTION=="add", ATTR{idVendor}=="2931", ATTR{idProduct}=="0a05", SYMLINK+="Jolla" RUN+="/usr/bin/jollaMounter.sh -a ", OPTIONS="last_rule"
-
-ACTION=="remove", ATTR{idVendor}=="2931", ATTR{idProduct}=="0a05", SYMLINK+="Jolla" RUN+="/usr/bin/jollaMounter.sh -r", OPTIONS="last_rule"
-
-LABEL="jolla_usb_rules_end"
