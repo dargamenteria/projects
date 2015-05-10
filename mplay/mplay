@@ -1,0 +1,429 @@
+#!/bin/bash
+
+
+
+do_init (){
+   
+   if ! get_status; then
+
+      rm ${ifo} 2> /dev/null
+      mkfifo ${ifo} 2> /dev/null
+      mkfifo ${logPipe} 2> /dev/null
+
+      
+      is_shuffle
+      local isshuf="$?"
+      if [ ${isshuf} -eq "1" ]; then
+         shuffle_playlist
+      fi
+
+ 
+     nohup mplayer -input file=${ifo} -playlist ${wplaylist}   -quiet  > $outputfile 2> /dev/null &
+     echo $! > ${pidFile} 
+
+      echo "PID: $!"
+      get_playlist_length
+
+   else
+      echo "Already stated"
+   fi  
+}
+
+get_playlist_length(){
+   echo "Playlist Lenght: " `cat $wplaylist | wc -l`
+}
+
+get_version (){
+	echo ${version}
+}
+
+do_kill(){
+   local pid=`cat $pidFile` 
+
+   if [ -n ${pid} ]; then
+      
+      #kill mplayer and its children 
+      kill -9 `ps -ef | grep $pid 2> /dev/null | grep -v grep | awk '{print $2}' `   2> /dev/null
+       
+      if [ "$?" -eq "0" ]; then
+         #echo "killed mplayer pid =>  $pid" 
+         echo > ${pidFile}
+         return 0
+      else
+         #echo "!killed mplayer pid => $pid" 
+         return 1
+      fi
+   fi
+}
+
+go_next () {
+   if get_status; then
+      echo "pt_step +1 1 " > ${ifo}
+   fi
+}
+
+	
+do_seek (){
+
+   if get_status; then
+     echo "seek $1 1" > ${ifo}
+   fi
+}
+
+go_prev (){
+   if get_status; then
+     echo "pt_step -1 1" > ${ifo}
+   fi
+}
+
+set_volume (){
+   if get_status; then
+     echo "volume $1 1" > ${ifo}
+   fi
+}
+
+go_pause (){
+   if get_status; then
+      echo "pause" > ${ifo}
+   fi
+}
+
+is_shuffle(){
+   local shuffle=`cat $shuffleFile`
+   if [ "$shuffle" -eq "0" ]; then
+      echo "Shuffle mode off"
+      return 0
+   else
+      echo "Shuffle mode on"
+      return 1
+   fi
+}
+
+set_shuffle(){
+
+   if [ -z "$1" ]; then
+      echo "No parameter passed doing nothing"
+   else
+      is_shuffle
+      local isshuf=$?
+
+      if [ "$isshuf" -eq "1" ]; then
+         if [ "$1" -eq "1" ]; then
+            echo "Shuffle mode already on"
+            echo 1 > $shuffleFile
+         else
+            echo "Pasing form shuflle to no shuffle sorting playlist"
+	         sort_playlist
+            do_send_command "loadlist $wplaylist"
+            echo 0 > "$shuffleFile"
+         fi
+
+      else
+
+         if [ "$1" -eq "1" ]; then
+            echo "Passing form no shuffle to shuffle shuflling playlist"
+	         shuffle_playlist
+		 do_send_command "loadlist $wplaylist"
+            echo 1 > "$shuffleFile"
+         else
+            echo "Shuffle already off"
+            echo 0 > "$shuffleFile"
+         fi
+      fi
+   fi
+}
+
+get_status (){
+   local pid=`cat ${pidFile} 2>/dev/null`
+
+   if [ -z "$pid" ]; then
+      echo "Not running"
+      return 1 
+   else
+
+      local psout=`ps -ef | grep "$pid" 2> /dev/null | grep -v grep`
+      if [ -z "$psout" ]; then
+         echo "Not running but pidFile found with pid $pid"         
+         echo "Deleting...."
+         rm ${pidFile} 2> /dev/null
+         return 1
+      else
+         echo "Up and running pid: $pid"
+         return 0
+      fi
+   fi
+}
+
+
+get_current_trak (){
+   if get_status > /dev/null; then
+    
+      #clear_logFile
+      #echo "$a" |  cut -f2- -d " "  >> "$outputfile" 
+      egrep -i --text "Playing|reproduciendo" ${outputfile} 2> /dev/null | tail -1 
+   fi
+}
+
+do_send_command(){
+   if get_status; then
+   	echo $1 > ${ifo}   
+   fi
+}
+
+load_playlist (){
+   is_shuffle
+   local isshuf=$?
+   local pl
+echo $1
+
+   if [ ! -e "$playlistHome/$1" ]; then #no se encuentra $playlistHome/nombrePlaylist
+	echo "$playlistHome/$1 not found"
+
+	if [ ! -e $1 ]; then #se habrá pasado la ruta entera ???
+		echo "$1 playlist not found"
+		return 1
+	else
+		pl=$1
+	fi
+		
+   else
+	pl="$playlistHome/$1"
+   fi 
+
+
+
+   if [ "$isshuf" -eq "1" ]; then
+	#echo "es shuffle"
+      cp ${pl} ${tplaylist} 2> /dev/null
+	#echo "cp $pl $tplaylist"
+      shuf ${tplaylist} > ${wplaylist}   2> /dev/null
+	#echo "se hace shuff $tplaylist  $wplaylist "
+   else
+      cp ${pl} ${wplaylist} 2> /dev/null
+      #echo " cp $pl a $wplaylist"
+   fi
+   #cat ${wplaylist} 2> /dev/null
+	do_send_command "loadlist ${wplaylist}"
+   
+}
+
+sort_playlist(){
+   sort -u "$wplaylist" > $tplaylist 2> /dev/null
+   cp "$tplaylist" "$wplaylist"
+}
+shuffle_playlist(){
+   shuf "$wplaylist" > $tplaylist 2> /dev/null 
+   cp "$tplaylist" "$wplaylist"
+}
+
+load_grepPlaylist (){
+  # echo "Not very userfull on sorted playlist"
+   egrep -i "$1" "$wplaylist" > /tmp/aux 2> /dev/null
+
+   is_shuffle
+   local isshuf=$?
+   echo ${isshuf}
+   if [ ${isshuf} -eq "1" ]; then
+      shuf /tmp/aux > ${tplaylist}  2> /dev/null
+   else
+      sort /tmp/aux > ${tplaylist}  2> /dev/null
+   fi
+   
+   rm /tmp/aux 2> /dev/null
+   cat ${tplaylist} 2> /dev/null
+
+   echo "Load those files (the current playlist will be altered) y/n"
+   read ok
+   if [[ ${ok} ==  "y" || ${ok} == "Y" ]]; then
+      if [ ${isshuf} -eq "1" ]; then
+         shuf ${wplaylist} >> ${tplaylist} 2> /dev/null
+      else
+        cat ${wplaylist} >> ${tplaylist} 2> /dev/null
+      fi
+      uniqueLines ${tplaylist} > ${wplaylist} 2> /dev/null
+      cp ${tplaylist} ${wplaylist}
+      do_send_command "loadlist $wplaylist 0"
+   fi
+
+}
+add_to_favourites (){
+    get_current_trak > /tmp/aux
+    local ruta=""
+
+    if [ ! -e $1 ]; then #se habrá pasado la ruta entera ???
+        ruta="$favouritesHome/favourites" 
+	else
+        ruta="$favouritesHome/$1" 
+	fi
+    
+    echo "$ruta" 
+    cat  "$ruta" >> /tmp/aux
+    sort -u  /tmp/aux > "$ruta" 2> /dev/null
+    rm /tmp/aux 2> /dev/null
+   
+}
+
+do_cmd() {
+   [ -z "$1" ] && return
+   #echo $1
+   cmd=`echo $@ | awk '{print $1}'`
+
+   case $cmd in
+      kill|quit|exit|q) 
+         do_kill
+      ;;
+      play|init|i)
+         if  get_status > /dev/null; then
+             go_pause 
+         fi
+         do_init
+      ;;
+      seek|e) 
+        do_seek $2 
+      ;;
+      next|n) 
+         go_next
+      ;;
+      back|b) 
+         go_prev
+      ;;
+      pause|p)
+         go_pause
+      ;;
+      volume|vol)
+          set_volume "$2"
+      ;;
+      favourites|f)
+         add_to_favourites "$2"
+      ;;
+       version|v)
+         get_version
+      ;;
+      status|s)
+      if  get_status; then
+        get_current_trak 
+      fi
+         is_shuffle
+      ;;
+      shuffle|sh)
+         set_shuffle "$2"
+      ;;
+      shufflep|shp)
+      shuffle_playlist
+	   do_send_command "loadlist $wplaylist"
+      ;;   
+      sortp|sop)
+   	sort_playlist
+	   do_send_command "loadlist $wplaylist"
+      ;;
+      current|c)
+         get_current_trak
+      ;;
+      plLength|pl)
+         get_playlist_length
+      ;;
+      lplaylist|lp)
+         load_playlist $2
+      ;;
+      do)
+          echo $2
+         do_send_command $2
+      ;;
+      unique|u)
+         uniqLines "$wplaylist" > "$tplaylist"
+         cp "$tplaylist" "$wplaylist"
+      ;;
+      
+      gplaylist|gpl)
+      if [ -n "$2" ]; then
+         load_grepPlaylist "$2"
+      else
+         echo "Second argument needed"
+      fi
+      ;;
+      help|*)
+         echo ""
+         echo "Control"
+         echo "Quit mplay:                                  kill|quit|exit|q"
+         echo "Inititate mplay:                             play|init|i"
+         echo "Pause mplay:                                 pause|p"
+         echo "Next track on playlist :                     next|n" 
+         echo "Precious track on playlist:                  back|b"   
+         echo "Go to % track:                               seek|e"   
+         echo "Volume vol:                                  volume|vol <value>"              
+         echo "Add to favourites:                           favourites|f"   
+         echo "Send commands to mplayer                     do {command}" 
+         echo ""
+         echo "Information"
+         echo "Mplay status:                                status|s"
+         echo "Get current trak name:                       current|c"
+         echo "Get playlist lenght:                         plLength|pl"
+	 echo "Mplay Version:		                         version|v"
+         echo ""
+         echo "Playlist"
+         echo "Set shuffle mode on/off:                     shuffle|sh {1|0}"
+         echo "Shuffle working playlist:                    shufflep|shp"
+         echo "Sort playlist:                               sortp|sop"        
+         echo "Load playlist:                               lplaylist|lp"        
+         echo "Erase duplicate traks on playlist            unique"
+         echo "Egrep playlist and load them                 gplaylist|gpl {string}"
+      ;;
+esac
+
+}
+
+version="1.2"
+
+mplayer=/usr/bin/mplayer
+if [ ! -e  $mplayer ];then
+  echo "$mplayer does not exist"
+  exit 1 
+fi
+
+
+mplayerHome="$HOME/.mplayer"
+
+if [ ! -e  $mplayerHome ];then
+  echo "$mplayerHome does not exist"
+  exit 1 
+fi
+
+mplayHome="$mplayerHome/mplay"
+
+pidFile="$mplayHome/pid"
+ifo="$mplayHome/ifo"
+logPipe="${mplayHome}/logPipe"
+
+shuffleFile="$mplayHome/shuffle"
+
+#by default shuffle is on
+if [ ! -e  $shuffleFile ];then
+  echo "$shuffleFile does not exist"
+fi
+
+
+playlistHome="$mplayHome/playlist"
+if [ ! -e  $playlistHome ];then
+  echo "$playlistHome does not exist"
+  mkdir $playlistHome
+fi
+
+favouritesHome="$mplayHome/favourites"
+if [ ! -e  $favouritesHome ];then
+  echo "$favouritesHome does not exist"
+  mkdir $favouritesHome
+fi
+
+wplaylist="$playlistHome/wplaylist"
+tplaylist="$playlistHome/tplaylist"
+
+if [ ! -e  $wplaylist ];then
+  echo "$wplaylist does not exist please load a playlist form $playlistHome"
+  echo "command mplay -lp playListName"
+fi
+
+
+outputfile="$mplayHome/mplayer.out"
+
+do_cmd "$@"
+
