@@ -116,13 +116,18 @@ public class DefaultEventManagerTest
         {
             
             SubEvent subEvent = new SubEvent (this);
+            SimpleEvent simpleEvent = new SimpleEvent (this);
             EventListenerMock evSubEvent = new EventListenerMock(new Class[]{SubEvent.class});
+            EventListenerMock evSimpleEvent = new EventListenerMock(new Class[]{SimpleEvent.class});
             
             eventManager.registerListener("some.key", evSubEvent);
-            eventManager.publishEvent(subEvent);
+            eventManager.registerListener("some.key", evSimpleEvent);
             
-            evSubEvent.handleEvent(subEvent);
-            assertTrue(evSubEvent.isCalled());
+            eventManager.publishEvent(subEvent);
+            eventManager.publishEvent(simpleEvent);
+            
+            assertTrue(evSimpleEvent.isCalled());
+            assertFalse(evSubEvent.isCalled());
 
         }
         catch (IllegalArgumentException ex)
