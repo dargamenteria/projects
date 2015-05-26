@@ -46,15 +46,6 @@ public class DefaultEventManager implements EventManager
         if (listeners.containsKey(listenerKey))
             unregisterListener(listenerKey);
 
-        /*Class[] classes = listener.getHandledEventClasses();
-
-        for (int i = 0; i < classes.length; i++)
-            addToListenerList(classes[i], listener);
-
-        listeners.put(listenerKey, listener);
-        */
-        
-        
         
         Class[] classes = listener.getHandledEventClasses();
 
