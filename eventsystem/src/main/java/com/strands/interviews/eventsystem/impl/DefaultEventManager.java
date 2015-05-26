@@ -56,16 +56,6 @@ public class DefaultEventManager implements EventManager
         
         listeners.put(listenerKey, listener);
         
-        /*for (int i = 0; i < classes.length; i++)
-            addToListenerList(classes[i], listener);
-
-        for(Object key : listenersByClass.keySet()){
-            addToListenerList((Class) key, listener);
-        }
-        */
-        
-        
-        
     }
 
     public void unregisterListener(String listenerKey)
