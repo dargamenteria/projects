@@ -109,4 +109,24 @@ public class DefaultEventManagerTest
         {
         }
     }
+    @Test
+    public void testAddNotificationToListener()
+    {
+        try
+        {
+            
+            SubEvent subEvent = new SubEvent (this);
+            EventListenerMock evSubEvent = new EventListenerMock(new Class[]{SubEvent.class});
+            
+            eventManager.registerListener("some.key", evSubEvent);
+            eventManager.publishEvent(subEvent);
+            
+            evSubEvent.handleEvent(subEvent);
+            assertTrue(evSubEvent.isCalled());
+
+        }
+        catch (IllegalArgumentException ex)
+        {
+        }
+    }
 }
