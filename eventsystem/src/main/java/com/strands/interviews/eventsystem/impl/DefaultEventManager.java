@@ -49,14 +49,21 @@ public class DefaultEventManager implements EventManager
         
         Class[] classes = listener.getHandledEventClasses();
 
-        for (int i = 0; i < classes.length; i++)
+        for (Object key :  listeners.keySet()){
+            for (int i = 0; i < classes.length; i++)
+                addToListenerList(classes[i], (InterviewEventListener) listeners.get(key));
+        }
+        
+        listeners.put(listenerKey, listener);
+        
+        /*for (int i = 0; i < classes.length; i++)
             addToListenerList(classes[i], listener);
 
         for(Object key : listenersByClass.keySet()){
             addToListenerList((Class) key, listener);
         }
+        */
         
-        listeners.put(listenerKey, listener);
         
         
     }
