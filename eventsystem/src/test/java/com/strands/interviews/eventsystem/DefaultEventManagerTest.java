@@ -134,4 +134,27 @@ public class DefaultEventManagerTest
         {
         }
     }
+    @Test
+    public void listenEveryEvent()
+    {
+        try
+        {
+            
+            
+            EventListenerMock eventListenerMock = new EventListenerMock(new Class[]{SimpleEvent.class});
+            eventManager.registerListener("some.key1", eventListenerMock);
+            eventManager.registerListener("some.key2", eventListenerMock);
+            eventManager.registerListener("some.key3", eventListenerMock);
+            eventManager.publishEvent(new SimpleEvent(this));;
+            
+            assertTrue(eventListenerMock.isCalled());
+
+
+            
+
+        }
+        catch (IllegalArgumentException ex)
+        {
+        }
+    }
 }
